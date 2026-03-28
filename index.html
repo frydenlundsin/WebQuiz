@@ -812,16 +812,16 @@ async function doAdminLogin() {
 
   // Verify PAT against GitHub API
   try {
-    const res = await fetch('https://api.github.com/user', {
+    const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
       headers: { 'Authorization': `token ${pat}` }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const user = await res.json();
+    const repoData = await res.json();
 
     sessionStorage.setItem('quiz_pat', pat);
     sessionStorage.setItem('quiz_role', 'admin');
 
-    toast(`Logget inn som ${user.login}`, 'success');
+    toast(`Logget inn — ${repoData.full_name}`, 'success');
     await ensureFiles(pat);
     showAdminDashboard();
   } catch (e) {
