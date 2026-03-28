@@ -550,7 +550,8 @@ const API_BASE   = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/cont
    STATE
 ═══════════════════════════════════════ */
 let pollTimer     = null;
-let fileShas      = {};   // filename → sha
+let fileShas      = {};        // filename → sha
+let etagCache     = {};        // filename → { etag, data }
 let lastRenderKey = null;
 
 /* ═══════════════════════════════════════
@@ -609,20 +610,27 @@ async function ghRead(filename, token) {
   const headers = { 'Accept': 'application/vnd.github.v3+json' };
   if (token) headers['Authorization'] = `token ${token}`;
 
-  try {
-    const res = await fetch(`${API_BASE}/${filename}?ref=${BRANCH}&t=${Date.now()}`, { headers });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    fileShas[filename] = data.sha;
-    return JSON.parse(b64decode(data.content));
-  } catch (e) {
-    if (e.message && e.message.includes('404')) return null;
-    throw e;
+  // Conditional request: 304 responses don't count against rate limit
+  const cached = etagCache[filename];
+  if (cached) headers['If-None-Match'] = cached.etag;
+
+  const res = await fetch(`${API_BASE}/${filename}?ref=${BRANCH}`, { headers });
+
+  if (res.status === 304) return cached.data; // unchanged
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${res.status}`);
   }
+
+  const data = await res.json();
+  fileShas[filename] = data.sha;
+  const parsed = JSON.parse(b64decode(data.content));
+
+  const etag = res.headers.get('ETag');
+  if (etag) etagCache[filename] = { etag, data: parsed };
+
+  return parsed;
 }
 
 async function ghWrite(filename, content, token) {
@@ -1170,7 +1178,10 @@ async function pollParticipant() {
     state = await ghRead('state.json', null);
     if (!state) { renderWaiting('Venter på quiz...'); return; }
   } catch (e) {
-    return; // silently ignore poll errors
+    if (lastRenderKey === null) {
+      renderWaiting('Kobler til... (' + e.message + ')');
+    }
+    return;
   }
 
   if (!state.aktiv) {
