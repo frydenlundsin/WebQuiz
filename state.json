@@ -1,5 +1,5 @@
 {
-  "aktiv": false,
+  "aktiv": true,
   "prosjekt": {
     "navn": "Testquiz",
     "oppgaver": [
