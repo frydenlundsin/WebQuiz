@@ -742,7 +742,7 @@ function handleBrandClick(e) {
   e.preventDefault();
   const role = sessionStorage.getItem('quiz_role');
   if (role === 'admin') showAdminDashboard();
-  else showLogin();
+  else showParticipant();
 }
 
 /* ═══════════════════════════════════════
@@ -771,12 +771,6 @@ function showLogin() {
         </button>
         <div id="login-err" class="text-danger mt8" style="font-size:.85rem;min-height:20px;"></div>
       </div>
-
-      <div class="divider">eller</div>
-
-      <button class="btn btn-outline w100" onclick="showParticipantEntry()">
-        Jeg er deltaker →
-      </button>
     </div>
   `);
 
@@ -827,50 +821,6 @@ async function doAdminLogin() {
   } catch (e) {
     errEl.textContent = 'Ugyldig PAT: ' + e.message;
   }
-}
-
-/* ═══════════════════════════════════════
-   VIEW: PARTICIPANT ENTRY
-═══════════════════════════════════════ */
-function showParticipantEntry() {
-  stopPoll();
-  setNav(`<button onclick="showLogin()">← Admin</button>`);
-  setApp(`
-    <div style="max-width:420px;margin:60px auto 0;">
-      <div class="card">
-        <h2>Deltaker</h2>
-        <div class="form-group">
-          <label>Navn / Lagnavn</label>
-          <input type="text" id="inp-navn" placeholder="Ditt navn eller lagnavn" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label>Deltaker-token <span class="text-muted">(valgfritt – hentes automatisk)</span></label>
-          <input type="text" id="inp-token" placeholder="Skriv inn token eller la stå tomt" autocomplete="off" value="${escapeHtml(sessionStorage.getItem('quiz_token') || getUrlParam('token') || '')}" />
-        </div>
-        <button class="btn btn-primary w100 mt8" onclick="doParticipantJoin()">
-          Bli med i quiz →
-        </button>
-      </div>
-    </div>
-  `);
-  setTimeout(() => {
-    document.getElementById('inp-navn')?.focus();
-    document.getElementById('inp-navn')?.addEventListener('keydown', e => { if (e.key === 'Enter') doParticipantJoin(); });
-    document.getElementById('inp-token')?.addEventListener('keydown', e => { if (e.key === 'Enter') doParticipantJoin(); });
-  }, 60);
-}
-
-function doParticipantJoin() {
-  const navn  = document.getElementById('inp-navn')?.value.trim();
-  const token = document.getElementById('inp-token')?.value.trim();
-
-  if (!navn) { toast('Skriv inn navn eller lagnavn', 'error'); return; }
-
-  sessionStorage.setItem('quiz_role', 'participant');
-  sessionStorage.setItem('quiz_navn', navn);
-  if (token) sessionStorage.setItem('quiz_token', token);
-
-  showParticipant();
 }
 
 function getUrlParam(name) {
@@ -971,7 +921,7 @@ async function showAdminDashboard() {
       <p class="text-muted mt8" style="font-size:.82rem;">
         Del denne URL-en med deltakere:
         <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:.8rem;">
-          ${window.location.origin}${window.location.pathname}?token=${escapeHtml(state.deltagerToken || '')}
+          ${window.location.origin}${window.location.pathname}
         </code>
       </p>
     </div>
@@ -1283,13 +1233,9 @@ async function avsluttQuiz() {
 ═══════════════════════════════════════ */
 function showParticipant() {
   stopPoll();
-  const navn = sessionStorage.getItem('quiz_navn') || 'Deltaker';
+  sessionStorage.setItem('quiz_role', 'participant');
 
-  setNav(`
-    <span class="text-muted" style="font-size:.85rem;">${escapeHtml(navn)}</span>
-    <a class="nav-link" href="#" onclick="showLogin();return false;">Admin</a>
-    <button onclick="doLogout()">Logg ut</button>
-  `);
+  setNav(`<a class="nav-link" href="?admin" style="opacity:.4;font-size:.8rem;">Admin</a>`);
 
   setApp(`
     <div class="waiting-screen">
@@ -1495,29 +1441,22 @@ function doLogout() {
   sessionStorage.removeItem('quiz_role');
   sessionStorage.removeItem('quiz_navn');
   sessionStorage.removeItem('quiz_token');
-  showLogin();
+  window.location.href = window.location.pathname;
 }
 
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
 async function init() {
-  const role  = sessionStorage.getItem('quiz_role');
-  const pat   = sessionStorage.getItem('quiz_pat');
-  const token = getUrlParam('token');
+  const pat        = sessionStorage.getItem('quiz_pat');
+  const isAdminUrl = window.location.search.includes('admin');
 
-  // If URL has token, save it
-  if (token) sessionStorage.setItem('quiz_token', token);
-
-  if (role === 'admin' && pat) {
-    showAdminDashboard();
-  } else if (role === 'participant') {
-    showParticipant();
-  } else if (token) {
-    // Auto-show participant entry for token URL
-    showParticipantEntry();
-  } else {
+  if (isAdminUrl && !(sessionStorage.getItem('quiz_role') === 'admin' && pat)) {
     showLogin();
+  } else if (sessionStorage.getItem('quiz_role') === 'admin' && pat) {
+    showAdminDashboard();
+  } else {
+    showParticipant();
   }
 }
 
