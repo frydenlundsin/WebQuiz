@@ -1,6 +1,45 @@
 {
-  "aktiv": false,
-  "prosjekt": null,
+  "aktiv": true,
+  "prosjekt": {
+    "navn": "Testquiz",
+    "oppgaver": [
+      {
+        "tittel": "Hvem er dette?",
+        "svar": true,
+        "blokker": [
+          {
+            "type": "tekst",
+            "innhold": "Gjett hvem denne personen er!"
+          },
+          {
+            "type": "bildegrid",
+            "bilder": [
+              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg"
+            ]
+          }
+        ]
+      },
+      {
+        "tittel": "Finn fellesnevneren",
+        "svar": true,
+        "blokker": [
+          {
+            "type": "tekst",
+            "innhold": "Hva har disse fire til felles?"
+          },
+          {
+            "type": "bildegrid",
+            "bilder": [
+              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg",
+              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg",
+              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg",
+              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg"
+            ]
+          }
+        ]
+      }
+    ]
+  },
   "oppgaveIndex": 0,
   "deltagerToken": "",
   "svar": []
