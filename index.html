@@ -545,6 +545,7 @@ const ADMIN_PASS = 'quiz2026';
 const POLL_MS    = 3000;
 
 const API_BASE   = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
+const PAGES_BASE = `https://${REPO_OWNER}.github.io/${REPO_NAME}`;
 
 /* ═══════════════════════════════════════
    STATE
@@ -1175,8 +1176,9 @@ function showParticipant() {
 async function pollParticipant() {
   let state;
   try {
-    state = await ghRead('state.json', null);
-    if (!state) { renderWaiting('Venter på quiz...'); return; }
+    const res = await fetch(`${PAGES_BASE}/state.json?v=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    state = await res.json();
   } catch (e) {
     if (lastRenderKey === null) {
       renderWaiting('Kobler til... (' + e.message + ')');
