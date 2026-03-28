@@ -549,9 +549,8 @@ const API_BASE   = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/cont
 /* ═══════════════════════════════════════
    STATE
 ═══════════════════════════════════════ */
-let pollTimer    = null;
-let fileShas     = {};          // filename → sha
-let submittedFor = new Set();   // oppgaveIndex values we've answered
+let pollTimer     = null;
+let fileShas      = {};   // filename → sha
 let lastRenderKey = null;
 
 /* ═══════════════════════════════════════
@@ -908,22 +907,11 @@ async function showAdminDashboard() {
     </div>
 
     <div class="card">
-      <h2>Innstillinger</h2>
-      <div class="section-title">Deltager-token</div>
-      <div class="settings-row">
-        <div class="form-group">
-          <label>Token (delt med deltakere)</label>
-          <input type="text" id="inp-deltoken" value="${escapeHtml(state.deltagerToken || '')}" placeholder="Sett et token..." />
-        </div>
-        <button class="btn btn-primary" onclick="saveDeltagerToken()">Lagre</button>
-        <button class="btn btn-secondary" onclick="genToken()">Generer</button>
-      </div>
-      <p class="text-muted mt8" style="font-size:.82rem;">
-        Del denne URL-en med deltakere:
-        <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:.8rem;">
-          ${window.location.origin}${window.location.pathname}
-        </code>
-      </p>
+      <h2>Del quiz-lenken</h2>
+      <p class="text-muted" style="font-size:.9rem;margin-bottom:10px;">Del denne URL-en med deltakere:</p>
+      <code style="display:block;background:var(--bg3);padding:10px 14px;border-radius:var(--radius);font-size:.9rem;">
+        ${window.location.origin}${window.location.pathname}
+      </code>
     </div>
 
     <!-- Import modal (hidden) -->
@@ -1049,28 +1037,6 @@ async function startProject(idx) {
   }
 }
 
-async function saveDeltagerToken() {
-  const token = document.getElementById('inp-deltoken')?.value.trim();
-  const pat   = sessionStorage.getItem('quiz_pat');
-  try {
-    const state = (await ghRead('state.json', pat)) || {};
-    state.deltagerToken = token;
-    await ghWrite('state.json', state, pat);
-    toast('Token lagret', 'success');
-    // Refresh dashboard to update URL
-    showAdminDashboard();
-  } catch (e) {
-    toast('Feil: ' + e.message, 'error');
-  }
-}
-
-function genToken() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  let t = '';
-  for (let i = 0; i < 16; i++) t += chars[Math.floor(Math.random() * chars.length)];
-  const el = document.getElementById('inp-deltoken');
-  if (el) el.value = t;
-}
 
 /* ═══════════════════════════════════════
    VIEW: ADMIN QUIZ
@@ -1109,26 +1075,13 @@ async function showAdminQuiz() {
 }
 
 function renderAdminQuiz(state) {
-  const proj      = state.prosjekt;
-  const oppgaver  = Array.isArray(proj.oppgaver) ? proj.oppgaver : [];
-  const idx       = state.oppgaveIndex || 0;
-  const oppgave   = oppgaver[idx];
-  const totalSvar = Array.isArray(state.svar) ? state.svar : [];
-  const thisSvar  = totalSvar.filter(s => s.oppgaveIndex === idx);
-  const total     = oppgaver.length;
+  const proj     = state.prosjekt;
+  const oppgaver = Array.isArray(proj.oppgaver) ? proj.oppgaver : [];
+  const idx      = state.oppgaveIndex || 0;
+  const oppgave  = oppgaver[idx];
+  const total    = oppgaver.length;
 
   const blokkerHtml = oppgave ? renderOppgaveBlokker(oppgave) : '<p class="text-muted text-center">Ingen oppgave</p>';
-
-  const svarHtml = thisSvar.length === 0
-    ? `<div class="no-answers">Ingen svar ennå…</div>`
-    : thisSvar.map(s => `
-        <div class="svar-item">
-          <div class="svar-navn">${escapeHtml(s.navn || 'Anonym')}</div>
-          <div class="svar-tekst">${escapeHtml(s.svar)}</div>
-          <div class="svar-tid">${fmtTime(s.tid)}</div>
-        </div>
-      `).join('');
-
   const progressPct = total > 1 ? (idx / (total - 1)) * 100 : 100;
 
   document.getElementById('app').innerHTML = `
@@ -1138,10 +1091,7 @@ function renderAdminQuiz(state) {
         <strong>${escapeHtml(proj.navn || proj.name)}</strong>
         <span class="text-muted" style="margin-left:8px;">· Spørsmål ${idx + 1} av ${total}</span>
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-secondary" onclick="toggleSvarEnabled()">
-          ${oppgave && oppgave.svar ? '🔒 Lås svar' : '🔓 Åpne for svar'}
-        </button>
+      <div style="margin-left:auto;">
         <button class="btn btn-sm btn-danger" onclick="avsluttQuiz()">Avslutt quiz</button>
       </div>
     </div>
@@ -1150,31 +1100,12 @@ function renderAdminQuiz(state) {
       <div class="progress-bar" style="width:${progressPct}%"></div>
     </div>
 
-    <div class="quiz-layout">
-      <div>
-        <div class="oppgave-card">
-          <div class="oppgave-number">Oppgave ${idx + 1} av ${total}</div>
-          ${blokkerHtml}
-        </div>
+    <div class="oppgave-card">${blokkerHtml}</div>
 
-        <div class="quiz-nav">
-          <button class="btn btn-secondary" onclick="adminNav(-1)" ${idx === 0 ? 'disabled' : ''}>
-            ← Forrige
-          </button>
-          <button class="btn btn-primary" onclick="adminNav(1)" ${idx >= total - 1 ? 'disabled' : ''}>
-            Neste →
-          </button>
-          ${idx >= total - 1 ? `<button class="btn btn-success" onclick="avsluttQuiz()">Fullfør quiz ✓</button>` : ''}
-        </div>
-      </div>
-
-      <div class="answers-panel">
-        <h3>
-          <span class="live-dot"></span>
-          Svar (${thisSvar.length})
-        </h3>
-        <div class="answers-list">${svarHtml}</div>
-      </div>
+    <div class="quiz-nav">
+      <button class="btn btn-secondary" onclick="adminNav(-1)" ${idx === 0 ? 'disabled' : ''}>← Forrige</button>
+      <button class="btn btn-primary" onclick="adminNav(1)" ${idx >= total - 1 ? 'disabled' : ''}>Neste →</button>
+      ${idx >= total - 1 ? `<button class="btn btn-success" onclick="avsluttQuiz()">Fullfør quiz ✓</button>` : ''}
     </div>
   `;
 }
@@ -1193,25 +1124,6 @@ async function adminNav(delta) {
   }
 }
 
-async function toggleSvarEnabled() {
-  const pat = sessionStorage.getItem('quiz_pat');
-  try {
-    const state = await ghRead('state.json', pat);
-    const idx   = state.oppgaveIndex || 0;
-    if (state.prosjekt && Array.isArray(state.prosjekt.oppgaver)) {
-      const oppgave = state.prosjekt.oppgaver[idx];
-      if (oppgave) {
-        oppgave.svar = !oppgave.svar;
-        state.prosjekt.oppgaver[idx] = oppgave;
-      }
-    }
-    await ghWrite('state.json', state, pat);
-    renderAdminQuiz(state);
-    toast(state.prosjekt.oppgaver[idx]?.svar ? 'Svar åpnet' : 'Svar låst', 'success');
-  } catch (e) {
-    toast('Feil: ' + e.message, 'error');
-  }
-}
 
 async function avsluttQuiz() {
   if (!confirm('Avslutt quizen? Svar beholdes.')) return;
@@ -1246,7 +1158,6 @@ function showParticipant() {
   `);
 
   lastRenderKey = null;
-  submittedFor  = new Set();
 
   // Immediate first poll, then repeat
   pollParticipant();
@@ -1254,43 +1165,28 @@ function showParticipant() {
 }
 
 async function pollParticipant() {
-  let token = sessionStorage.getItem('quiz_token') || getUrlParam('token') || null;
-
   let state;
   try {
-    state = await ghRead('state.json', token);
+    state = await ghRead('state.json', null);
     if (!state) { renderWaiting('Venter på quiz...'); return; }
   } catch (e) {
-    // silently ignore poll errors
-    return;
-  }
-
-  // Pick up deltagerToken from state if we don't have one
-  if (!token && state.deltagerToken) {
-    token = state.deltagerToken;
-    sessionStorage.setItem('quiz_token', token);
+    return; // silently ignore poll errors
   }
 
   if (!state.aktiv) {
-    const key = 'waiting';
-    if (lastRenderKey !== key) {
-      lastRenderKey = key;
+    if (lastRenderKey !== 'waiting') {
+      lastRenderKey = 'waiting';
       renderWaiting('Quizen er ikke aktiv ennå. Venter...');
     }
     return;
   }
 
-  const idx  = state.oppgaveIndex || 0;
-  const proj = state.prosjekt;
-  const oppgave = (proj && Array.isArray(proj.oppgaver)) ? proj.oppgaver[idx] : null;
-
-  // Smart re-render key: only re-render on meaningful changes
-  const svarEnabled = oppgave?.svar ? '1' : '0';
-  const renderKey   = `${idx}-${svarEnabled}`;
+  const idx     = state.oppgaveIndex || 0;
+  const renderKey = `${idx}`;
   if (lastRenderKey === renderKey) return;
   lastRenderKey = renderKey;
 
-  renderParticipantOppgave(state, oppgave, idx);
+  renderParticipantOppgave(state, idx);
 }
 
 function renderWaiting(msg) {
@@ -1304,46 +1200,12 @@ function renderWaiting(msg) {
   `;
 }
 
-function renderParticipantOppgave(state, oppgave, idx) {
-  const blokkerHtml = oppgave ? renderOppgaveBlokker(oppgave) : '<p class="text-muted text-center">Ingen oppgave</p>';
-  const svarEnabled = oppgave?.svar === true;
-  const alreadySent = submittedFor.has(idx);
-  const token       = sessionStorage.getItem('quiz_token') || getUrlParam('token') || '';
-
-  let formHtml = '';
-  if (svarEnabled && !alreadySent) {
-    const navn = sessionStorage.getItem('quiz_navn') || '';
-    formHtml = `
-      <div class="answer-form-wrap">
-        <h3>✏️ Send inn svar</h3>
-        <div class="form-group">
-          <label>Navn / Lag</label>
-          <input type="text" id="svar-navn" value="${escapeHtml(navn)}" placeholder="Ditt navn eller lagnavn" />
-        </div>
-        <div class="form-group">
-          <label>Ditt svar</label>
-          <textarea id="svar-tekst" rows="3" placeholder="Skriv svaret ditt her..."></textarea>
-        </div>
-        <button class="btn btn-primary" onclick="sendSvar(${idx})">Send svar</button>
-      </div>
-    `;
-  } else if (svarEnabled && alreadySent) {
-    formHtml = `
-      <div class="sent-badge">
-        <span>✓</span> Svar sendt! Venter på neste spørsmål...
-      </div>
-    `;
-  } else if (!svarEnabled) {
-    formHtml = `
-      <div class="answer-form-wrap text-center" style="color:var(--muted);">
-        <p>🔒 Svar er ikke åpnet for dette spørsmålet ennå</p>
-      </div>
-    `;
-  }
-
-  const proj  = state.prosjekt;
-  const total = (proj && Array.isArray(proj.oppgaver)) ? proj.oppgaver.length : 1;
-  const progressPct = total > 1 ? (idx / (total - 1)) * 100 : 100;
+function renderParticipantOppgave(state, idx) {
+  const proj    = state.prosjekt;
+  const oppgave = (proj && Array.isArray(proj.oppgaver)) ? proj.oppgaver[idx] : null;
+  const total   = (proj && Array.isArray(proj.oppgaver)) ? proj.oppgaver.length : 1;
+  const progressPct  = total > 1 ? (idx / (total - 1)) * 100 : 100;
+  const blokkerHtml  = oppgave ? renderOppgaveBlokker(oppgave) : '<p class="text-muted text-center">Ingen oppgave</p>';
 
   document.getElementById('app').innerHTML = `
     <div style="max-width:720px;margin:0 auto;">
@@ -1356,81 +1218,10 @@ function renderParticipantOppgave(state, oppgave, idx) {
         <div class="progress-bar" style="width:${progressPct}%"></div>
       </div>
       <div class="oppgave-card">${blokkerHtml}</div>
-      ${formHtml}
     </div>
   `;
 }
 
-/* ═══════════════════════════════════════
-   SEND SVAR
-═══════════════════════════════════════ */
-async function sendSvar(oppgaveIndex) {
-  const token = sessionStorage.getItem('quiz_token') || getUrlParam('token') || '';
-  if (!token) {
-    toast('Deltager-token mangler. Spør admin om token.', 'error');
-    return;
-  }
-
-  const navn  = document.getElementById('svar-navn')?.value.trim();
-  const svar  = document.getElementById('svar-tekst')?.value.trim();
-
-  if (!navn) { toast('Skriv inn navn', 'error'); return; }
-  if (!svar) { toast('Skriv inn et svar', 'error'); return; }
-
-  // Save navn for later
-  sessionStorage.setItem('quiz_navn', navn);
-
-  const btn = document.querySelector('.answer-form-wrap .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sender...'; }
-
-  const nyttSvar = {
-    oppgaveIndex,
-    navn,
-    svar,
-    tid: new Date().toISOString()
-  };
-
-  // Retry loop
-  let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      // Always read fresh state before writing to avoid conflicts
-      const state = await ghRead('state.json', token);
-      if (!state) throw new Error('Klarte ikke lese state.json');
-
-      // Check we're still on the same question
-      if (state.oppgaveIndex !== oppgaveIndex) {
-        toast('Spørsmålet har endret seg. Vennligst svar på det nye spørsmålet.', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = 'Send svar'; }
-        return;
-      }
-
-      const svarListe = Array.isArray(state.svar) ? state.svar : [];
-      svarListe.push(nyttSvar);
-      state.svar = svarListe;
-
-      await ghWrite('state.json', state, token);
-      submittedFor.add(oppgaveIndex);
-      toast('Svar sendt!', 'success');
-
-      // Re-render to show confirmation
-      lastRenderKey = null; // force re-render
-      const fresh = await ghRead('state.json', token).catch(() => state);
-      renderParticipantOppgave(fresh, fresh.prosjekt?.oppgaver?.[oppgaveIndex], oppgaveIndex);
-      return;
-    } catch (e) {
-      lastError = e;
-      if (e.status === 409 && attempt < 2) {
-        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-        continue;
-      }
-      break;
-    }
-  }
-
-  toast('Feil ved sending: ' + (lastError?.message || 'Ukjent feil'), 'error');
-  if (btn) { btn.disabled = false; btn.textContent = 'Send svar'; }
-}
 
 /* ═══════════════════════════════════════
    LOGOUT
@@ -1439,8 +1230,6 @@ function doLogout() {
   stopPoll();
   sessionStorage.removeItem('quiz_pat');
   sessionStorage.removeItem('quiz_role');
-  sessionStorage.removeItem('quiz_navn');
-  sessionStorage.removeItem('quiz_token');
   window.location.href = window.location.pathname;
 }
 
